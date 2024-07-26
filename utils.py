@@ -4,6 +4,36 @@ import torch.nn.functional as F
 
 from hellaswag import render_example, iterate_examples
 
+import requests
+
+
+
+
+class llm_chatter:
+    def __init__(self,host='http://127.0.0.1:5000/v1/chat/completions'):
+        self.host = host
+        self.msg_history = []
+        self.headers = {
+            "Content-Type": "application/json"
+        }
+    def communicate(self,prompt,greedy=False,reset=False,max_tokens=2048):
+        if reset:
+            self.msg_history = []
+        self.msg_history.append({"role": "user", "content": prompt})
+        data = {
+            "mode": "instruct",
+            "max_tokens": max_tokens,
+            "messages": self.msg_history
+        }
+        if greedy:
+            data['temperature'] = 0
+        response = requests.post(self.host, headers=self.headers, json=data, verify=False)
+        answer = response.json()['choices'][0]['message']['content']
+        self.msg_history.append({"role": "assistant", "content": answer})
+        return answer
+
+
+
 def get_most_likely_row(tokens, mask, logits):
     # evaluate the autoregressive loss at all positions
     shift_logits = (logits[..., :-1, :]).contiguous()
@@ -59,6 +89,37 @@ def evaluate_hella_swag(model, device, device_type,model_imp, dist=None,ddp=Fals
     return num_correct_norm,num_total,acc_norm
 
 
+def extract_json(content):
+    # Initialize counters for curly braces
+    open_brace_count = 0
+    close_brace_count = 0
+    json_start_index = None
+    json_end_index = None
+
+    # Iterate over the content by index and character
+    for index, char in enumerate(content):
+        if char == '{':
+            open_brace_count += 1
+            # Mark the start of JSON content
+            if json_start_index is None:
+                json_start_index = index
+        elif char == '}':
+            close_brace_count += 1
+            # If the counts match, we've found the end of the JSON content
+            if open_brace_count == close_brace_count:
+                json_end_index = index + 1  # Include the closing brace
+                break
+
+    # If we found a start and end, extract and parse the JSON
+    if json_start_index is not None and json_end_index is not None:
+        json_str = content[json_start_index:json_end_index]
+        try:
+            json_data = json.loads(json_str)
+            return json_data
+        except json.JSONDecodeError as e:
+            raise ValueError("Invalid JSON content") from e
+    else:
+        raise ValueError("No JSON content found")
 
 
 def completion(model, enc, prompt, device, device_type,model_imp, generate_max_length,num_return_sequences,rank=0, greedy=False):
@@ -89,7 +150,7 @@ def completion(model, enc, prompt, device, device_type,model_imp, generate_max_l
         results = []
         tokens = xgen[0, :generate_max_length].tolist()
         decoded = enc.decode(tokens)
-        print(f"rank {rank} sample 0: {decoded}")
+        #print(f"rank {rank} sample 0: {decoded}")
         results.append(decoded)
         return results
 

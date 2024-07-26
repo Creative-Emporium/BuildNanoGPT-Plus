@@ -33,20 +33,13 @@ num_return_sequences = 1
 generate_max_length = 64
 model_imp = 'custom'
 
-first_prompt ='Please generate 50 pieces of texts for an LLM to continue to complete to test the completion abilities of an LLM. Please directly give the samples without numbers, each a line without any other comments.'
-msg_history = []
-msg_history.append({"role": "user", "content": first_prompt})
-
-headers = {
-    "Content-Type": "application/json"
-}
-data = {
-    "mode": "instruct",
-    "messages": msg_history
-}
 host = "http://127.0.0.1:5000/v1/chat/completions"
-response = requests.post(host, headers=headers, json=data, verify=False)
-answer = response.json()['choices'][0]['message']['content']
+LLMChatter = llm_chatter(host)
+
+first_prompt ='Please generate 50 pieces of texts for an LLM to continue to complete to test the completion abilities of an LLM. Please directly give the samples without numbers, each a line without any other comments.'
+
+
+answer = LLMChatter.communicate(first_prompt,reset=True)
 
 print("Answer: ", answer)
 samples = answer.split('\n')
@@ -62,17 +55,11 @@ for sam in samples:
     comp1 = comp1[0]
     comp2 = comp2[0]
 
-    prompt = f'Below are two completions from two LLMs from the prompt "{sam}". The first one is "{comp1}". The second one is "{comp2}". Please verify which one is better. Please start your answer with 1 or 2 (because I will extract your choice from the first 5 characters), followed by reason. Even if neither makes much sense, please still say which one is slightly better'
-    msg_history = []
-    msg_history.append({"role": "user", "content": prompt})
-    data = {
-        "mode": "instruct",
-        "temperature": 0,
-        "messages": msg_history
-    }
-    response = requests.post(host, headers=headers, json=data, verify=False)
-    answer = response.json()['choices'][0]['message']['content']
+    prompt = prompt = f'Below are two completions from two LLMs from the prompt "{sam}". \nThe first completion is "{comp1}". \nThe second completion is "{comp2}".\n Please verify which one is better. Please start your answer with 1 or 2 meaning the first or the second completion is better (because I will extract your choice from the first 5 characters), followed by reason. Even if neither makes much sense, please still say which one is slightly better.'
 
+
+
+    answer = LLMChatter.communicate(prompt,greedy=True, reset=True)
     print("=====\nAnswer: ", answer)
     if '1' in answer[:5]:
         win1 += 1
