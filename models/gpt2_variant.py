@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class GPTConfig:
+class GPTVariantConfig:
     block_size: int = 1024 # max sequence length
     vocab_size: int = 50257 # number of tokens: 50,000 BPE merges + 256 bytes tokens + 1 <|endoftext|> token
     n_layer: int = 12 # number of layers
@@ -64,16 +64,18 @@ class Block(nn.Module):
         super().__init__()
         self.ln_1 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
+        self.ln_12 = nn.LayerNorm(config.n_embd)
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = MLP(config)
+        self.ln_22 = nn.LayerNorm(config.n_embd)
 
     def forward(self, x):
-        x = x + self.attn(self.ln_1(x))
-        x = x + self.mlp(self.ln_2(x))
+        x = x + self.ln_12(self.attn(self.ln_1(x)))
+        x = x + self.ln_22(self.mlp(self.ln_2(x)))
         return x
 
 
-class GPT(nn.Module):
+class GPTVariant(nn.Module):
 
     def __init__(self, config):
         super().__init__()

@@ -22,7 +22,7 @@ def get_most_likely_row(tokens, mask, logits):
     # the one with the lowest loss should be the most likely
     pred_norm = avg_loss.argmin().item()
     return pred_norm
-def evaluate_hella_swag(model, device, device_type, dist=None,ddp=False,master_process=False,ddp_rank=0,ddp_world_size=1,log_file=None,step=0):
+def evaluate_hella_swag(model, device, device_type,model_imp, dist=None,ddp=False,master_process=False,ddp_rank=0,ddp_world_size=1,log_file=None,step=0):
     num_correct_norm = 0
     num_total = 0
     for i, example in enumerate(iterate_examples("val")):
@@ -36,7 +36,10 @@ def evaluate_hella_swag(model, device, device_type, dist=None,ddp=False,master_p
         # get the logits
         with torch.no_grad():
             with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                logits, loss = model(tokens)
+                if model_imp == 'hf':
+                    logits, _ = model(tokens, return_dict=False)
+                else:
+                    logits = model(tokens)
             pred_norm = get_most_likely_row(tokens, mask, logits)
         num_total += 1
         num_correct_norm += int(pred_norm == label)
@@ -58,19 +61,47 @@ def evaluate_hella_swag(model, device, device_type, dist=None,ddp=False,master_p
 
 
 
-def completion(model, enc, prompt, device, device_type, generate_max_length,num_return_sequences,rank=0):
+def completion(model, enc, prompt, device, device_type,model_imp, generate_max_length,num_return_sequences,rank=0, greedy=False):
     model.eval()
     tokens = enc.encode(prompt)
     tokens = torch.tensor(tokens, dtype=torch.long)
+    if greedy:
+        num_return_sequences = 1
     tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
     xgen = tokens.to(device)
     sample_rng = torch.Generator(device=device)
     sample_rng.manual_seed(42 + rank)
+    if greedy:
+        # greedy decoding
+        while xgen.size(1) < generate_max_length:
+            with torch.no_grad():
+                with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                    if model_imp == 'hf':
+                        logits, _ = model(xgen, return_dict=False)
+                    else:
+                        logits = model(xgen)
+                # take the logits at the last position
+                logits = logits[:, -1, :]
+                # take the argmax
+                ix = torch.argmax(logits, dim=-1, keepdim=True)
+                xcol = ix
+                xgen = torch.cat((xgen, xcol), dim=1)
+        results = []
+        tokens = xgen[0, :generate_max_length].tolist()
+        decoded = enc.decode(tokens)
+        print(f"rank {rank} sample 0: {decoded}")
+        results.append(decoded)
+        return results
+
+
     while xgen.size(1) < generate_max_length:
         # forward the model to get the logits
         with torch.no_grad():
             with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                logits, loss = model(xgen) # (B, T, vocab_size)
+                if model_imp == 'hf':
+                    logits, _ = model(xgen, return_dict=False)
+                else:
+                    logits = model(xgen)
             # take the logits at the last position
             logits = logits[:, -1, :] # (B, vocab_size)
             # get the probabilities
@@ -86,10 +117,13 @@ def completion(model, enc, prompt, device, device_type, generate_max_length,num_
             # append to the sequence
             xgen = torch.cat((xgen, xcol), dim=1)
     # print the generated text
+    results = []
     for i in range(num_return_sequences):
         tokens = xgen[i, :generate_max_length].tolist()
         decoded = enc.decode(tokens)
         print(f"rank {rank} sample {i}: {decoded}")
+        results.append(decoded)
+    return results
 
 
 

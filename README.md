@@ -15,13 +15,21 @@ The training script is train.py, and the model implementation, and the evaluatio
 
 Now, a partially trained model can be loaded in train.py to continue training it rather than start from scratch all the time.
 
-- [x] Printing Training Progress
+- [x] Printing Training Progress and Estimated Time.
 
-You had to calculate the training progress. Now, it is printed.
+You had to calculate the training progress and completion time. Now, it is printed.
 
 - [x] Add Model format Convertion.
 
 The trained model now can be converted to the Huggingface transformers format with the function convert_to_hf from convert_to_hf.py.
+
+- [x] Add Comparison Evaluation by an LLM.
+
+Now, we can compare the performance of two LLMs on completion by a well trained LLM with auto_evaluation.py
+
+- [x] Add Training Transformers CausalLM model.
+
+Now, it can train the transformers' CausalLM model in train.py.
 
 - [x] Add Model Loading and Generation.
 

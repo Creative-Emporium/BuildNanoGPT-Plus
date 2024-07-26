@@ -1,4 +1,5 @@
 from models.gpt2 import GPTConfig
+from models.gpt2_variant import GPTVariantConfig
 from models.llama import LlamaConfig
 
 
@@ -14,4 +15,11 @@ model_presets = {
 
     'llama': {'124m': LlamaConfig(n_layers=12, n_heads=12, dim=768, vocab_size=50304, max_seq_len=1024, intermediate_size=4 * 768),
               '978m': LlamaConfig(n_layers=36, n_heads=20, dim=1280, vocab_size=50304, max_seq_len=1024, intermediate_size=5120,n_kv_heads=4)},
+
+    'gpt2variant': {'10m': GPTVariantConfig(n_layer=2, n_head=2, n_embd=64, vocab_size=50304, block_size=1024),
+             '124m': GPTVariantConfig(n_layer=12, n_head=12, n_embd=768, vocab_size=50304, block_size=1024),
+             '500m': GPTVariantConfig(n_layer=36, n_head=16, n_embd=1024, vocab_size=50304, block_size=1024),
+             'large': GPTVariantConfig(n_layer=36, n_head=16, n_embd=1280, vocab_size=50304, block_size=1024),
+             'xl': GPTVariantConfig(n_layer=48, n_head=16, n_embd=1600, vocab_size=50304, block_size=1024)},
+
 }

@@ -1,3 +1,3 @@
 apt update
 apt install -y vim
-pip install transformers tiktoken tqdm
+pip install transformers tiktoken tqdm datasets

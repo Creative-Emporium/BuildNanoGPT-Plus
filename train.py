@@ -33,9 +33,10 @@ parser = argparse.ArgumentParser(description='Train a model')
 
 # Add the arguments
 parser.add_argument('--for_develop', type=bool, default=False, help='For development')
-parser.add_argument('--model_name', type=str, default='gpt2', help='Model name')
+parser.add_argument('--model_name', type=str, default='gpt2variant', help='Model name')
+parser.add_argument('--model_imp', type=str, default='custom', help='Model name')
 parser.add_argument('--siz', type=str, default='124m', help='Size')
-parser.add_argument('--log_dir', type=str, default='log', help='Log directory')
+parser.add_argument('--log_dir', type=str, default='log_gpt2_variant', help='Log directory')
 
 parser.add_argument('--B', type=int, default=32, help='Micro batch size')
 parser.add_argument('--T', type=int, default=1024, help='Sequence length')
@@ -70,6 +71,7 @@ for_develop = args.for_develop
 model_name = args.model_name
 siz = args.siz
 log_dir = args.log_dir
+model_imp = args.model_imp
 
 B = args.B
 T = args.T
@@ -162,13 +164,28 @@ torch.set_float32_matmul_precision('high')
 
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
 
+if model_imp == 'hf':
+    print("training with HuggingFace transformers implementation")
+    from transformers import GPT2LMHeadModel, GPT2Config
+    hf_conf = GPT2Config.from_pretrained('gpt2')
+    model = GPT2LMHeadModel(hf_conf)
+else:
+    print(f"training with custom implementation of {model_name}")
+    if model_name == "gpt2":
+        from models.gpt2 import GPT, GPTConfig
+        # create model
+        model = GPT(model_presets[model_name][siz])
+        if continue_training:
+            model = load_model(model, ckpt_path)
+    elif model_name == "gpt2variant":
+        from models.gpt2_variant import GPTVariant, GPTVariantConfig
+        model = GPTVariant(model_presets[model_name][siz])
+        if continue_training:
+            model = load_model(model, ckpt_path)
 
-if model_name == "gpt2":
-    from models.gpt2 import GPT, GPTConfig
-    # create model
-    model = GPT(model_presets[model_name][siz])
-    if continue_training:
-        model = load_model(model, ckpt_path)
+num_params = sum([p.numel() for p in model.parameters()])
+if master_process:
+    print(f"number of parameters: {num_params:,}")
 
 model.to(device)
 use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix
@@ -192,7 +209,10 @@ def get_lr(it):
     return min_lr + coeff * (max_lr - min_lr)
 
 # optimize!
-optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type,master_process=master_process)
+if model_imp == 'hf':
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0, betas=(0.9, 0.95), eps=1e-8, weight_decay=0.1, fused=True)
+else:
+    optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type,master_process=master_process)
 
 # create the log directory we will write checkpoints to and log to
 os.makedirs(log_dir, exist_ok=True)
@@ -215,7 +235,10 @@ for step in range(max_steps):
                 x, y = val_loader.next_batch()
                 x, y = x.to(device), y.to(device)
                 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                    logits, loss = model(x, y)
+                    if model_imp == 'hf':
+                        loss, logits, _ = model(x, labels=y, return_dict=False)
+                    else:
+                        logits, loss = model(x, y)
                 loss = loss / val_loss_steps
                 val_loss_accum += loss.detach()
         if ddp:
@@ -240,11 +263,11 @@ for step in range(max_steps):
 
     # once in a while evaluate hellaswag
     if (step % evaluate_hella_every == 0 or last_step) and (not use_compile):
-        evaluate_hella_swag(model, device, device_type, dist,ddp,master_process,ddp_rank,ddp_world_size,log_file,step)
+        evaluate_hella_swag(model, device, device_type,model_imp, dist,ddp,master_process,ddp_rank,ddp_world_size,log_file,step)
 
     # once in a while generate from the model (except step 0, which is noise)
     if ((step > 0 and step % generate_every == 0) or last_step) and (not use_compile):
-        completion(model, enc, generate_prompt, device, device_type, generate_max_length, num_return_sequences, rank=ddp_rank)
+        completion(model, enc, generate_prompt, device, device_type,model_imp, generate_max_length, num_return_sequences, rank=ddp_rank)
 
     # do one step of the optimization
     model.train()
@@ -257,7 +280,10 @@ for step in range(max_steps):
         if ddp:
             model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
         with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-            logits, loss = model(x, y)
+             if model_imp == 'hf':
+                 loss, logits, _ = model(x, labels=y, return_dict=False)
+             else:
+                 logits, loss = model(x, y)
         # we have to scale the loss to account for gradient accumulation,
         # because the gradients just add on each successive backward().
         # addition of gradients corresponds to a SUM in the objective, but
