@@ -32,7 +32,7 @@ import argparse
 parser = argparse.ArgumentParser(description='Train a model')
 
 # Add the arguments
-parser.add_argument('--for_develop', type=bool, default=True, help='For development')
+parser.add_argument('--for_develop', type=bool, default=False, help='For development')
 parser.add_argument('--model_name', type=str, default='gpt2', help='Model name')
 parser.add_argument('--siz', type=str, default='124m', help='Size')
 parser.add_argument('--log_dir', type=str, default='log', help='Log directory')
