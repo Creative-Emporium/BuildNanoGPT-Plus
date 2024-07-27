@@ -1,8 +1,8 @@
 from huggingface_hub import upload_folder
 
 # Define your folder path and repository name
-folder_path = "./log"
-repo_id = "DrNicefellow/nanogpt_124m"
+folder_path = "./forupload"
+repo_id = "DrNicefellow/nanogpt_500m"
 
 # Upload the folder to the repository
 upload_folder(

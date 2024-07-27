@@ -33,7 +33,8 @@ parser = argparse.ArgumentParser(description='Train a model')
 
 # Add the arguments
 parser.add_argument('--for_develop', type=bool, default=False, help='For development')
-parser.add_argument('--model_name', type=str, default='gpt2variant', help='Model name')
+parser.add_argument('--model_name', type=str, default='gpt2', help='Model name')
+parser.add_argument('--data_root', type=str, default="edu_fineweb10B", help='Root of Data folder')
 parser.add_argument('--model_imp', type=str, default='custom', help='Model name')
 parser.add_argument('--siz', type=str, default='124m', help='Size')
 parser.add_argument('--log_dir', type=str, default='log_gpt2_variant', help='Log directory')
@@ -157,13 +158,15 @@ if master_process:
     print(f"total desired batch size: {total_batch_size}")
     print(f"=> calculated gradient accumulation steps: {grad_accum_steps}")
 
-train_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size, split="train", master_process=master_process)
-val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size, split="val", master_process=master_process)
+train_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size, split="train",
+        data_root = data_root, master_process=master_process)
+val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size, data_root = data_root, split="val", master_process=master_process)
 
 torch.set_float32_matmul_precision('high')
 
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
 
+start_step = 0
 if model_imp == 'hf':
     print("training with HuggingFace transformers implementation")
     from transformers import GPT2LMHeadModel, GPT2Config
@@ -175,18 +178,15 @@ else:
         from models.gpt2 import GPT, GPTConfig
         # create model
         model = GPT(model_presets[model_name][siz])
-        if continue_training:
-            model = load_model(model, ckpt_path)
     elif model_name == "gpt2variant":
         from models.gpt2_variant import GPTVariant, GPTVariantConfig
         model = GPTVariant(model_presets[model_name][siz])
-        if continue_training:
-            model = load_model(model, ckpt_path)
     elif model_name == 'llama':
         from models.llama import LlamaTransformer, LlamaConfig
         model = LlamaTransformer(model_presets[model_name][siz])
-        if continue_training:
-            model = load_model(model, ckpt_path)
+if continue_training:
+    model = load_model(model, ckpt_path)
+    start_step = model['step']+22000
 
 num_params = sum([p.numel() for p in model.parameters()])
 if master_process:
@@ -225,7 +225,7 @@ log_file = os.path.join(log_dir, f"log.txt")
 with open(log_file, "w") as f: # open for writing to clear the file
     pass
 
-for step in range(max_steps):
+for step in range(start_step,max_steps+start_step):
     t0 = time.time()
     last_step = (step == max_steps - 1)
 
@@ -253,7 +253,7 @@ for step in range(max_steps):
             with open(log_file, "a") as f:
                 f.write(f"{step} val {val_loss_accum.item():.4f}\n")
 
-    if step > 0 and (step % save_every == 0 or last_step):
+    if step > start_step and (step % save_every == 0 or last_step):
         # optionally write model checkpoints
         checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
         checkpoint = {
@@ -267,11 +267,11 @@ for step in range(max_steps):
         torch.save(checkpoint, checkpoint_path)
 
     # once in a while evaluate hellaswag
-    if (step % evaluate_hella_every == 0 or last_step) and (not use_compile) and step > 0:
+    if (step % evaluate_hella_every == 0 or last_step) and (not use_compile) and step > start_step:
         evaluate_hella_swag(model, device, device_type,model_imp, dist,ddp,master_process,ddp_rank,ddp_world_size,log_file,step)
 
     # once in a while generate from the model (except step 0, which is noise)
-    if ((step > 0 and step % generate_every == 0) or last_step) and (not use_compile):
+    if ((step > start_step and step % generate_every == 0) or last_step) and (not use_compile):
         completion(model, enc, generate_prompt, device, device_type,model_imp, generate_max_length, num_return_sequences, rank=ddp_rank)
 
     # do one step of the optimization
