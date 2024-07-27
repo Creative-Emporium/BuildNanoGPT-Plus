@@ -2,7 +2,7 @@
 
 This repo is mainly a refactored, modularized, and extended version of the original [BuildNanoGPT](https://github.com/karpathy/build-nanogpt). The BuildNanoGPT project together with [Andrej's step by step video](https://www.youtube.com/watch?v=l8pRSuU81PU) is one of the best learning material even for deep learning researchers. I learned a lot from it. The problem with the original project is that it is not modularized and is not convenient for some follow-up usages and test. So I decided to refactor it and extend it to make it more modular and more easily used and experimented with.
 
-I include model implementations other than just gpt-2. Currently, I added the implementations of Llama, which is done by [hengjiUSTC's learn-llm](https://github.com/hengjiUSTC/learn-llm) with small modifications. I will add more models in the future.
+I include model implementations other than just gpt-2. Currently, I added the implementations of Llama, which is done by [hengjiUSTC's learn-llm](https://github.com/hengjiUSTC/learn-llm) with small modifications. Well, that implementation seems quite like partially copied the implementation in transformers. I will add more models in the future.
 
 Below is a list of what have been done in this project:
 
