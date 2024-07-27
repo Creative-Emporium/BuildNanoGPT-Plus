@@ -99,9 +99,9 @@ for sam in samples:
     answer = LLMChatter.communicate(prompt, greedy=True, reset=True)
     print("=====\nAnswer: ", answer)
     if '1' in answer[:5] and tmpwin == 2:
-        win1 += 1
+        win2 += 1
     elif '2' in answer[:5] and tmpwin == 1:
-        win1 += 2
+        win1 += 1
     else:
         print("inconsistent result")
 

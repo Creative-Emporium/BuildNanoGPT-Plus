@@ -347,7 +347,7 @@ class LlamaTransformer(nn.Module):
 
         return model
 
-    def configure_optimizers(self, weight_decay, learning_rate, device_type):
+    def configure_optimizers(self, weight_decay, learning_rate, device_type,master_process):
         # start with all of the candidate parameters (that require grad)
         param_dict = {pn: p for pn, p in self.named_parameters()}
         param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}

@@ -182,6 +182,11 @@ else:
         model = GPTVariant(model_presets[model_name][siz])
         if continue_training:
             model = load_model(model, ckpt_path)
+    elif model_name == 'llama':
+        from models.llama import LlamaTransformer, LlamaConfig
+        model = LlamaTransformer(model_presets[model_name][siz])
+        if continue_training:
+            model = load_model(model, ckpt_path)
 
 num_params = sum([p.numel() for p in model.parameters()])
 if master_process:
