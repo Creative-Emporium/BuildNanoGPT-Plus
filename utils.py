@@ -148,6 +148,7 @@ def completion(model, enc, prompt, device, device_type,model_imp, generate_max_l
                 ix = torch.argmax(logits, dim=-1, keepdim=True)
                 xcol = ix
                 xgen = torch.cat((xgen, xcol), dim=1)
+                print("ix:", ix)
         results = []
         tokens = xgen[0, :generate_max_length].tolist()
         decoded = enc.decode(tokens)
@@ -195,4 +196,4 @@ def load_model(model, ckp_path):
     checkpoint = torch.load(ckp_path, map_location=torch.device('cpu'))
     state_dict = checkpoint['model']
     model.load_state_dict(state_dict)
-    return model
+    return model, checkpoint['step']

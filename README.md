@@ -2,7 +2,7 @@
 
 This repo is mainly a refactored, modularized, and extended version of the original [BuildNanoGPT](https://github.com/karpathy/build-nanogpt). The BuildNanoGPT project together with [Andrej's step by step video](https://www.youtube.com/watch?v=l8pRSuU81PU) is one of the best learning material even for deep learning researchers. I learned a lot from it. The problem with the original project is that it is not modularized and is not convenient for some follow-up usages and test. So I decided to refactor it and extend it to make it more modular and more easily used and experimented with.
 
-I include model implementations other than just gpt-2. Currently, I added the implementations of Llama, which is done by [hengjiUSTC's learn-llm](https://github.com/hengjiUSTC/learn-llm). I will add more models in the future.
+I include model implementations other than just gpt-2. Currently, I added the implementations of Llama, which is done by [hengjiUSTC's learn-llm](https://github.com/hengjiUSTC/learn-llm) with small modifications. I will add more models in the future.
 
 Below is a list of what have been done in this project:
 
@@ -22,6 +22,10 @@ You had to calculate the training progress and completion time. Now, it is print
 - [x] Add Model format Convertion.
 
 The trained model now can be converted to the Huggingface transformers format with the function convert_to_hf from convert_to_hf.py.
+
+- [x] Support loading any transformers model.
+
+In the past, only specified pretrained models can be loaded. Now they can all be loaded. The config can be read from transformers model configs.
 
 - [x] Add Comparison Evaluation by an LLM.
 

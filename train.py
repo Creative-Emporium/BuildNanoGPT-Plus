@@ -74,6 +74,8 @@ siz = args.siz
 log_dir = args.log_dir
 model_imp = args.model_imp
 
+data_root = args.data_root
+
 B = args.B
 T = args.T
 
@@ -185,8 +187,8 @@ else:
         from models.llama import LlamaTransformer, LlamaConfig
         model = LlamaTransformer(model_presets[model_name][siz])
 if continue_training:
-    model = load_model(model, ckpt_path)
-    start_step = model['step']+22000
+    model, ini_step = load_model(model, ckpt_path)
+    start_step = ini_step
 
 num_params = sum([p.numel() for p in model.parameters()])
 if master_process:
@@ -225,7 +227,8 @@ log_file = os.path.join(log_dir, f"log.txt")
 with open(log_file, "w") as f: # open for writing to clear the file
     pass
 
-for step in range(start_step,max_steps+start_step):
+max_steps = max_steps+start_step
+for step in range(start_step,max_steps):
     t0 = time.time()
     last_step = (step == max_steps - 1)
 
@@ -259,8 +262,8 @@ for step in range(start_step,max_steps+start_step):
         checkpoint = {
             'model': raw_model.state_dict(),
             'config': raw_model.config,
-            'step': step,
-            'val_loss': val_loss_accum.item()
+            'step': step#,
+            #'val_loss': val_loss_accum.item()
         }
         # you might also want to add optimizer.state_dict() and
         # rng seeds etc., if you wanted to more exactly resume training

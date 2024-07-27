@@ -10,7 +10,7 @@ import numpy as np
 
 
 def load_tokens(filename):
-    npt = np.load(filename)
+    npt = np.load(filename,allow_pickle=True)
     npt = npt.astype(np.int32) # added after video
     ptt = torch.tensor(npt, dtype=torch.long)
     return ptt
@@ -31,6 +31,7 @@ class DataLoaderLite:
         self.shards = shards
         assert len(shards) > 0, f"no shards found for split {split}"
         if master_process:
+            print(f"Data root is {data_root}")
             print(f"found {len(shards)} shards for split {split}")
         self.reset()
 

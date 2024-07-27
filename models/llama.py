@@ -18,12 +18,10 @@ class LlamaConfig:
     n_heads: int = 12
     n_kv_heads: int = 12
     vocab_size: int = 50257
-    multiple_of: int = 256  # make SwiGLU hidden layer size multiple of large power of 2
     ffn_dim_multiplier: Optional[float] = None
     norm_eps: float = 1e-5
     rope_theta: int = 500000
 
-    max_batch_size: int = 32
     max_seq_len: int = 1024
 
 
@@ -324,21 +322,25 @@ class LlamaTransformer(nn.Module):
         # assert model_type in {'llama-3-8B'}
         from transformers import AutoModelForCausalLM
         print("loading weights from pretrained gpt: %s" % model_type)
-        # n_layers, n_head and n_embd are determined from model_type
-        config_args = {
-            'llama-3-8B': dict(n_layers=32, n_heads=32, dim=4096, n_kv_heads=8),
-        }[model_type]
-        config_args['vocab_size'] = 128256  # always 50257 for GPT model checkpoints
-        config_args['max_seq_len'] = 1024  # always 1024 for GPT model checkpoints
+        model_hf = AutoModelForCausalLM.from_pretrained(model_type)
 
-        config = LlamaConfig(**config_args)
+        dim = model_hf.config.hidden_size
+        intermediate_size= model_hf.config.intermediate_size
+        n_layers = model_hf.config.num_hidden_layers
+        n_heads = model_hf.config.num_attention_heads
+        n_kv_heads = model_hf.config.num_key_value_heads
+        vocab_size = model_hf.config.vocab_size
+        norm_eps = model_hf.config.rms_norm_eps
+        rope_theta = model_hf.config.rope_theta
+        max_seq_len = model_hf.config.max_position_embeddings
+
+        config = LlamaConfig(dim=dim, intermediate_size=intermediate_size, n_layers=n_layers, n_heads=n_heads,n_kv_heads=n_kv_heads, vocab_size=vocab_size, norm_eps=norm_eps, rope_theta=rope_theta, max_seq_len=max_seq_len)
         model = LlamaTransformer(config)
         sd = model.state_dict()
         sd_keys = sd.keys()
         sd_keys = [k for k in sd_keys if not k.endswith('.bias')]  # discard bias
         print(len(sd_keys))
 
-        model_hf = AutoModelForCausalLM.from_pretrained("meta-llama/Meta-Llama-3-8B")
         sd_hf = model_hf.state_dict()
         sd_keys_hf = sd_hf.keys()
         assert len(sd_keys_hf) == len(sd_keys), f"mismatched keys: {len(sd_keys_hf)} != {len(sd_keys)}"
