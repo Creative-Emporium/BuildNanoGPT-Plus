@@ -311,7 +311,10 @@ class LlamaTransformer(nn.Module):
         hidden_states = outputs
         logits = self.lm_head(hidden_states)
         logits = logits.float()
+        if targets is None:
+            return logits
         loss = None
+
         if targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
         return logits, loss
