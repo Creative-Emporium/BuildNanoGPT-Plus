@@ -55,16 +55,28 @@ for sam in samples:
     comp1 = comp1[0]
     comp2 = comp2[0]
 
-    prompt = prompt = f'Below are two completions from two LLMs from the prompt "{sam}". \nThe first completion is "{comp1}". \nThe second completion is "{comp2}".\n Please verify which one is better. Please start your answer with 1 or 2 meaning the first or the second completion is better (because I will extract your choice from the first 5 characters), followed by reason. Even if neither makes much sense, please still say which one is slightly better.'
+    prompt = f'Below are two completions from two LLMs from the prompt "{sam}". \nThe first completion is "{comp1}". \nThe second completion is "{comp2}".\n Please verify which one is better. Please start your answer with 1 or 2 meaning the first or the second completion is better (because I will extract your choice from the first 5 characters), followed by reason. Even if neither makes much sense, please still say which one is slightly better.'
+    # print(f'-----------\nprompt:\n{prompt}----------------\n')
 
-
-
-    answer = LLMChatter.communicate(prompt,greedy=True, reset=True)
+    answer = LLMChatter.communicate(prompt, greedy=True, reset=True)
     print("=====\nAnswer: ", answer)
     if '1' in answer[:5]:
-        win1 += 1
+        tmpwin = 1
     elif '2' in answer[:5]:
-        win2 += 1
+        tmpwin = 2
     else:
         print("answer wrong")
+
+    prompt = f'Below are two completions from two LLMs from the prompt "{sam}". \nThe first completion is "{comp2}". \nThe second completion is "{comp1}".\n Please verify which one is better. Please start your answer with 1 or 2 meaning the first or the second completion is better (because I will extract your choice from the first 5 characters), followed by reason. Even if neither makes much sense, please still say which one is slightly better.'
+    # print(f'-----------\nprompt:\n{prompt}----------------\n')
+
+    answer = LLMChatter.communicate(prompt, greedy=True, reset=True)
+    print("=====\nAnswer: ", answer)
+    if '1' in answer[:5] and tmpwin == 2:
+        win1 += 1
+    elif '2' in answer[:5] and tmpwin == 1:
+        win1 += 2
+    else:
+        print("inconsistent result")
+
 print(win1, win2)

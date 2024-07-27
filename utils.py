@@ -23,7 +23,8 @@ class llm_chatter:
         data = {
             "mode": "instruct",
             "max_tokens": max_tokens,
-            "messages": self.msg_history
+            "instruction_template":"Llama-v3",
+                "messages": self.msg_history
         }
         if greedy:
             data['temperature'] = 0
