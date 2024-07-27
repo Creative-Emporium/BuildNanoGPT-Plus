@@ -52,7 +52,7 @@ parser.add_argument('--warmup_steps', type=int, default=715, help='Warmup steps'
 
 parser.add_argument('--total_token', type=int, default=10**10, help='Total token')
 
-parser.add_argument('--max_steps', type=int, default=19073, help='Max steps')
+parser.add_argument('--max_steps', type=int, default=39073, help='Max steps')
 
 parser.add_argument('--evaluate_every', type=int, default=250, help='Evaluate every')
 parser.add_argument('--evaluate_hella_every', type=int, default=250, help='Evaluate Hella every')
@@ -230,7 +230,7 @@ for step in range(max_steps):
     last_step = (step == max_steps - 1)
 
     # once in a while evaluate our validation loss
-    if step % evaluate_every == 0 or last_step:
+    if (step % evaluate_every == 0 and step > 0) or last_step:
         model.eval()
         val_loader.reset()
         with torch.no_grad():
@@ -267,7 +267,7 @@ for step in range(max_steps):
         torch.save(checkpoint, checkpoint_path)
 
     # once in a while evaluate hellaswag
-    if (step % evaluate_hella_every == 0 or last_step) and (not use_compile):
+    if (step % evaluate_hella_every == 0 or last_step) and (not use_compile) and step > 0:
         evaluate_hella_swag(model, device, device_type,model_imp, dist,ddp,master_process,ddp_rank,ddp_world_size,log_file,step)
 
     # once in a while generate from the model (except step 0, which is noise)
