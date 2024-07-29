@@ -6,7 +6,7 @@ from hellaswag import render_example, iterate_examples
 
 import requests
 
-
+import time
 
 
 class llm_chatter:
@@ -133,6 +133,7 @@ def completion(model, enc, prompt, device, device_type,model_imp, generate_max_l
     xgen = tokens.to(device)
     sample_rng = torch.Generator(device=device)
     sample_rng.manual_seed(42 + rank)
+    t1 = time.time()
     if greedy:
         # greedy decoding
         while xgen.size(1) < generate_max_length:
@@ -153,6 +154,8 @@ def completion(model, enc, prompt, device, device_type,model_imp, generate_max_l
         decoded = enc.decode(tokens)
         #print(f"rank {rank} sample 0: {decoded}")
         results.append(decoded)
+        t2 = time.time()
+        print(f"generating {num_return_sequences} greedy completions of length {generate_max_length} took {t2 - t1:.2f} seconds")
         return results
 
 
@@ -185,6 +188,8 @@ def completion(model, enc, prompt, device, device_type,model_imp, generate_max_l
         decoded = enc.decode(tokens)
         print(f"rank {rank} sample {i}: {decoded}")
         results.append(decoded)
+    t2 = time.time()
+    print(f"generating {num_return_sequences} completions of length {generate_max_length} took {t2 - t1:.2f} seconds")
     return results
 
 
