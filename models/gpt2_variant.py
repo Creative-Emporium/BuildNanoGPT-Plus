@@ -60,18 +60,21 @@ class MLP(nn.Module):
 
 class Block(nn.Module):
 
-    def __init__(self, config):
+    def __init__(self, config,i):
         super().__init__()
         self.ln_1 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
-        self.ln_12 = nn.LayerNorm(config.n_embd)
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = MLP(config)
-        self.ln_22 = nn.LayerNorm(config.n_embd)
+        self.i = i
 
     def forward(self, x):
-        x = x + self.ln_12(self.attn(self.ln_1(x)))
-        x = x + self.ln_22(self.mlp(self.ln_2(x)))
+        if self.i < 2:
+            x = self.attn(self.ln_1(x))
+            x = self.mlp(self.ln_2(x))
+        else:
+            x = x + self.attn(self.ln_1(x))
+            x = x + self.mlp(self.ln_2(x))
         return x
 
 
@@ -84,7 +87,7 @@ class GPTVariant(nn.Module):
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(config.vocab_size, config.n_embd),
             wpe = nn.Embedding(config.block_size, config.n_embd),
-            h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+            h = nn.ModuleList([Block(config,i) for i,_ in enumerate(range(config.n_layer))]),
             ln_f = nn.LayerNorm(config.n_embd),
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)

@@ -41,6 +41,7 @@ parser.add_argument('--log_dir', type=str, default='log_gpt2_variant', help='Log
 
 parser.add_argument('--B', type=int, default=32, help='Micro batch size')
 parser.add_argument('--T', type=int, default=1024, help='Sequence length')
+parser.add_argument('--start_shard', type=int, default=0, help='Start shard')
 
 parser.add_argument('--total_batch_size', type=int, default=524288, help='Total batch size')
 
@@ -53,7 +54,7 @@ parser.add_argument('--warmup_steps', type=int, default=715, help='Warmup steps'
 
 parser.add_argument('--total_token', type=int, default=10**10, help='Total token')
 
-parser.add_argument('--max_steps', type=int, default=39073, help='Max steps')
+parser.add_argument('--max_steps', type=int, default=19073, help='Max steps')
 
 parser.add_argument('--evaluate_every', type=int, default=250, help='Evaluate every')
 parser.add_argument('--evaluate_hella_every', type=int, default=250, help='Evaluate Hella every')

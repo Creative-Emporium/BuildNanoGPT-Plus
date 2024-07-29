@@ -16,7 +16,7 @@ def load_tokens(filename):
     return ptt
 
 class DataLoaderLite:
-    def __init__(self, B, T, process_rank, num_processes, split, data_root, master_process=False):
+    def __init__(self, B, T, process_rank, num_processes, split, data_root,current_shard=0, master_process=False):
         self.B = B
         self.T = T
         self.process_rank = process_rank
@@ -33,11 +33,11 @@ class DataLoaderLite:
         if master_process:
             print(f"Data root is {data_root}")
             print(f"found {len(shards)} shards for split {split}")
-        self.reset()
+        self.reset(current_shard)
 
-    def reset(self):
+    def reset(self,current_shard):
         # state, init at shard zero
-        self.current_shard = 0
+        self.current_shard = current_shard
         self.tokens = load_tokens(self.shards[self.current_shard])
         self.current_position = self.B * self.T * self.process_rank
 
