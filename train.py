@@ -188,7 +188,7 @@ else:
         from models.llama import LlamaTransformer, LlamaConfig
         model = LlamaTransformer(model_presets[model_name][siz])
 if continue_training:
-    model, ini_step = load_model(model, ckpt_path)
+    model, ini_step = load_model(model, ckpt_path, True)
     start_step = ini_step
 
 num_params = sum([p.numel() for p in model.parameters()])

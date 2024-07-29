@@ -35,7 +35,7 @@ class DataLoaderLite:
             print(f"found {len(shards)} shards for split {split}")
         self.reset(current_shard)
 
-    def reset(self,current_shard):
+    def reset(self,current_shard=0):
         # state, init at shard zero
         self.current_shard = current_shard
         self.tokens = load_tokens(self.shards[self.current_shard])
