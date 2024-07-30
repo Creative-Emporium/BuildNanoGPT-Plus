@@ -2,7 +2,7 @@ from huggingface_hub import upload_folder
 
 # Define your folder path and repository name
 folder_path = "./forupload"
-repo_id = "DrNicefellow/nanogpt_500m"
+repo_id = "DrNicefellow/nano_llama_1_7b"
 
 # Upload the folder to the repository
 upload_folder(

@@ -6,16 +6,28 @@ import logging
 import datetime
 import time
 
+torch.set_float32_matmul_precision('high')
 # Setup logging
 logging.basicConfig(filename='train_log.txt', level=logging.INFO)
 
+
+model_imp = 'custom'
+
+if model_imp == 'hf':
 # Load the model and tokenizer
-model_path = 'DrNicefellow/Nano-GPT2-500m-29k_steps'
-model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.bfloat16)
+    model_path = 'DrNicefellow/Nano-GPT2-500m-29k_steps'
+    model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.bfloat16)
+else:
+    print("Using custom model")
+    from models.gpt2 import GPT
+    model_path = 'DrNicefellow/Nano-GPT2-500m-29k_steps'
+    model = GPT.from_pretrained(model_path)
+    model = model.to(torch.bfloat16)
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 tokenizer.pad_token = tokenizer.eos_token
 
-tokenizer.pad_token = tokenizer.eos_token
+
+
 
 # Prepare the data
 dataset = load_dataset("DrNicefellow/CHAT-ALL-IN-ONE-v1", split="train")
@@ -32,9 +44,10 @@ train_dataloader = DataLoader(tokenized_datasets, batch_size=16, shuffle=True, c
 # Move model to GPU and cast to bfloat16
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)#.to(torch.bfloat16)  # Cast model to bfloat16
+model = torch.compile(model)
 
 # Setup optimizer with offload to CPU
-optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
+optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5,fused=True)
 
 # Training loop
 num_epochs = 1
@@ -51,8 +64,13 @@ for epoch in range(num_epochs):
         # Cast batch to bfloat16 and move to device
         t2 = time.time()
         batch = {k: v.to(device) for k, v in batch.items()}
-        outputs = model(**batch)
-        loss = outputs.loss / accumulation_steps
+        if model_imp == 'hf':
+            outputs = model(**batch)
+            loss = outputs.loss / accumulation_steps
+        else:
+            logits, loss = model(batch['input_ids'], batch['labels'])
+            loss = loss / accumulation_steps
+
         loss.backward()
         time_taken += time.time() - t2
 
