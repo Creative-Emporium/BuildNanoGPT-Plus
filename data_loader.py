@@ -40,6 +40,13 @@ class DataLoaderLite:
         self.current_shard = current_shard
         self.tokens = load_tokens(self.shards[self.current_shard])
         self.current_position = self.B * self.T * self.process_rank
+    def set_shard_and_pos(self, current_shard, current_position=-1):
+        self.current_shard = current_shard
+        self.tokens = load_tokens(self.shards[self.current_shard])
+        if current_position == -1:
+            self.current_position = self.B * self.T * self.process_rank
+        else:
+            self.current_position = current_position
 
     def next_batch(self):
         B, T = self.B, self.T
@@ -53,7 +60,7 @@ class DataLoaderLite:
             self.current_shard = (self.current_shard + 1) % len(self.shards)
             self.tokens = load_tokens(self.shards[self.current_shard])
             self.current_position = B * T * self.process_rank
-        return x, y
+        return x, y, self.current_shard, self.current_position
 
 # -----------------------------------------------------------------------------
 # helper function for HellaSwag eval

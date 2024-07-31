@@ -101,6 +101,8 @@ generate_every = args.generate_every
 generate_prompt = args.generate_prompt
 num_return_sequences = args.num_return_sequences
 generate_max_length = args.generate_max_length
+start_shard = args.start_shard
+start_position = 0
 
 
 if for_develop:
@@ -180,16 +182,34 @@ else:
     if model_name == "gpt2":
         from models.gpt2 import GPT, GPTConfig
         # create model
-        model = GPT(model_presets[model_name][siz])
+        if continue_training:
+            checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
+            config = checkpoint['config']
+            model = GPT(config)
+            model, ini_step = load_model(model, ckpt_path, True)
+        else:
+            model = GPT(model_presets[model_name][siz])
     elif model_name == "gpt2variant":
         from models.gpt2_variant import GPTVariant, GPTVariantConfig
         model = GPTVariant(model_presets[model_name][siz])
     elif model_name == 'llama':
         from models.llama import LlamaTransformer, LlamaConfig
-        model = LlamaTransformer(model_presets[model_name][siz])
-if continue_training:
-    model, ini_step = load_model(model, ckpt_path, True)
-    start_step = ini_step
+        if continue_training:
+            checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
+            if 'current_shard' in checkpoint:
+                start_shard = checkpoint['current_shard']
+                start_position = checkpoint['current_position']
+
+            config = checkpoint['config']
+            model = LlamaTransformer(config)
+            model, ini_step = load_model(model, ckpt_path, True)
+        else:
+            model = LlamaTransformer(model_presets[model_name][siz])
+train_loader.set_shard_and_pos(start_shard, start_position)
+print(f"trainin from shard {start_shard} position {start_position}")
+#if continue_training:
+#    model, ini_step = load_model(model, ckpt_path, True)
+#    start_step = ini_step
 
 num_params = sum([p.numel() for p in model.parameters()])
 if master_process:
@@ -225,8 +245,8 @@ else:
 # create the log directory we will write checkpoints to and log to
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, f"log.txt")
-with open(log_file, "w") as f: # open for writing to clear the file
-    pass
+#with open(log_file, "w") as f: # open for writing to clear the file
+#    pass
 
 max_steps = max_steps+start_step
 for step in range(start_step,max_steps):
@@ -241,7 +261,7 @@ for step in range(start_step,max_steps):
             val_loss_accum = 0.0
             val_loss_steps = 20
             for _ in range(val_loss_steps):
-                x, y = val_loader.next_batch()
+                x, y, current_valid_shard, current_valid_position = val_loader.next_batch()
                 x, y = x.to(device), y.to(device)
                 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
                     if model_imp == 'hf':
@@ -263,7 +283,9 @@ for step in range(start_step,max_steps):
         checkpoint = {
             'model': raw_model.state_dict(),
             'config': raw_model.config,
-            'step': step#,
+            'step': step,
+            'current_shard': current_train_shard,
+            'current_position': current_train_position
             #'val_loss': val_loss_accum.item()
         }
         # you might also want to add optimizer.state_dict() and
@@ -283,7 +305,7 @@ for step in range(start_step,max_steps):
     optimizer.zero_grad()
     loss_accum = 0.0
     for micro_step in range(grad_accum_steps):
-        x, y = train_loader.next_batch()
+        x, y, current_train_shard, current_train_position = train_loader.next_batch()
         x, y = x.to(device), y.to(device)
         # added after video, this field is also used by the forward pass.
         if ddp:
