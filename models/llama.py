@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from hellaswag import render_example, iterate_examples
+from models.kvcache import KVCache
 
 
 @dataclass
@@ -158,6 +159,8 @@ class LlamaAttention(nn.Module):
             self,
             hidden_states: torch.Tensor,
             position_ids: Optional[torch.LongTensor] = None,
+            use_cache: bool = False,
+            cache: KVCache = None,
     ) -> torch.Tensor:
         bsz, q_len, _ = hidden_states.size()
 
@@ -174,6 +177,16 @@ class LlamaAttention(nn.Module):
 
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
+
+        if use_cache:
+            if len(cache.key_list[self.layer_idx]) > 0:
+                key_states_old, value_states_old = cache.get_key_values(self.layer_idx)
+                key_states =  torch.cat([key_states_old, key_states], dim=2)
+                value_states = torch.cat([value_states_old, value_states], dim=2)
+            cache.update(self.layer_idx, key_states, value_states)
+
+
+
 
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query_states,
@@ -223,6 +236,8 @@ class Block(nn.Module):
             self,
             hidden_states: torch.Tensor,
             position_ids: Optional[torch.LongTensor] = None,
+            use_cache: bool = False,
+            cache: KVCache = None,
     ):
         residual = hidden_states
 
@@ -232,6 +247,8 @@ class Block(nn.Module):
         hidden_states = self.self_attn(
             hidden_states=hidden_states,
             position_ids=position_ids,
+            use_cache=use_cache,
+            cache=cache,
         )
         hidden_states = residual + hidden_states
 
@@ -263,10 +280,10 @@ class LlamaModel(nn.Module):
 
         self.norm = LlamaRMSNorm(params.dim, eps=params.norm_eps)
 
-    def forward(self, tokens: torch.Tensor, position_ids: torch.LongTensor):
+    def forward(self, tokens: torch.Tensor, position_ids: torch.LongTensor, use_cache: bool = False, cache: KVCache = None):
         h = self.embed_tokens(tokens)
         for layer in self.layers:
-            h = layer(h, position_ids)
+            h = layer(h, position_ids, use_cache=use_cache, cache=cache)
         h = self.norm(h)
         return h
 
@@ -297,13 +314,24 @@ class LlamaTransformer(nn.Module):
             self,
             input_ids: torch.LongTensor,
             targets: Optional[torch.LongTensor] = None,
+            use_cache: Optional[bool] = False,
+            cache: Optional[KVCache] = None,
     ):
         batch_size, seq_len = input_ids.shape
-        position_ids = torch.arange(seq_len, device=input_ids.device).unsqueeze(0).expand(batch_size, seq_len)
+        if use_cache:
+            if len(cache.key_list[0]) > 0:
+                start_pos = cache.key_list[0].shape[2]
+                position_ids = torch.arange(start_pos, start_pos + seq_len, device=input_ids.device).unsqueeze(0).expand(batch_size, seq_len)
+            else:
+                position_ids = torch.arange(seq_len, device=input_ids.device).unsqueeze(0).expand(batch_size, seq_len)
+        else:
+            position_ids = torch.arange(seq_len, device=input_ids.device).unsqueeze(0).expand(batch_size, seq_len)
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         outputs = self.model(
             input_ids,
             position_ids=position_ids,
+            use_cache=use_cache,
+            cache=cache,
         )
 
         hidden_states = outputs
@@ -317,6 +345,13 @@ class LlamaTransformer(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
         return logits, loss
 
+    @classmethod
+    def from_custom_pretrained(cls, ckp_path):
+        ckp = torch.load(ckp_path)
+        config = ckp['config']
+        model = LlamaTransformer(config)
+        model.load_state_dict(ckp['model'])
+        return model
     @classmethod
     def from_pretrained(cls, model_type):
         # assert model_type in {'llama-3-8B'}

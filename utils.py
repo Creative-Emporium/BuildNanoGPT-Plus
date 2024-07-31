@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 
 from hellaswag import render_example, iterate_examples
-
+from models.kvcache import KVCache
 import requests
 
 import time
@@ -123,40 +123,51 @@ def extract_json(content):
         raise ValueError("No JSON content found")
 
 
-def completion(model, enc, prompt, device, device_type,model_imp, generate_max_length,num_return_sequences,rank=0, greedy=False):
+def completion(model, enc, prompt, device, device_type,model_imp, generate_max_length,num_return_sequences,rank=0, greedy=False, use_cache=False):
     model.eval()
     tokens = enc.encode(prompt)
     tokens = torch.tensor(tokens, dtype=torch.long)
+    cpu_device = torch.device("cpu")
     if greedy:
         num_return_sequences = 1
     tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
+    if use_cache:
+        cache = KVCache(model.config.n_layers)
+    else:
+        cache = None
+    result = tokens
     xgen = tokens.to(device)
     sample_rng = torch.Generator(device=device)
     sample_rng.manual_seed(42 + rank)
     t1 = time.time()
     if greedy:
         # greedy decoding
-        while xgen.size(1) < generate_max_length:
+        while result.size(1) < generate_max_length:
             with torch.no_grad():
                 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
                     if model_imp == 'hf':
                         logits, _ = model(xgen, return_dict=False)
                     else:
-                        logits = model(xgen)
+                        logits = model(xgen,use_cache=use_cache,cache=cache)
                 # take the logits at the last position
                 logits = logits[:, -1, :]
                 # take the argmax
                 ix = torch.argmax(logits, dim=-1, keepdim=True)
                 xcol = ix
-                xgen = torch.cat((xgen, xcol), dim=1)
-        results = []
-        tokens = xgen[0, :generate_max_length].tolist()
+                if use_cache:
+                    xgen = xcol
+                    result = torch.cat((result, xgen.to(cpu_device)), dim=1)
+                else:
+                    xgen = torch.cat((xgen, xcol), dim=1)
+                    result = xgen
+        ret = []
+        tokens = result[0, :generate_max_length].tolist()
         decoded = enc.decode(tokens)
         #print(f"rank {rank} sample 0: {decoded}")
-        results.append(decoded)
+        ret.append(decoded)
         t2 = time.time()
         print(f"generating {num_return_sequences} greedy completions of length {generate_max_length} took {t2 - t1:.2f} seconds")
-        return results
+        return ret
 
 
     while xgen.size(1) < generate_max_length:
