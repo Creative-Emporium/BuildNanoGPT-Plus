@@ -187,6 +187,7 @@ else:
             config = checkpoint['config']
             model = GPT(config)
             model, ini_step = load_model(model, ckpt_path, True)
+            start_step = ini_step
         else:
             model = GPT(model_presets[model_name][siz])
     elif model_name == "gpt2variant":
@@ -203,6 +204,7 @@ else:
             config = checkpoint['config']
             model = LlamaTransformer(config)
             model, ini_step = load_model(model, ckpt_path, True)
+            start_step = ini_step
         else:
             model = LlamaTransformer(model_presets[model_name][siz])
 train_loader.set_shard_and_pos(start_shard, start_position)
