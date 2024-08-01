@@ -178,14 +178,14 @@ class LlamaAttention(nn.Module):
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
 
+        is_causal = True
         if use_cache:
             if len(cache.key_list[self.layer_idx]) > 0:
                 key_states_old, value_states_old = cache.get_key_values(self.layer_idx)
                 key_states =  torch.cat([key_states_old, key_states], dim=2)
                 value_states = torch.cat([value_states_old, value_states], dim=2)
+                is_causal = False
             cache.update(self.layer_idx, key_states, value_states)
-
-
 
 
         attn_output = torch.nn.functional.scaled_dot_product_attention(
@@ -193,7 +193,7 @@ class LlamaAttention(nn.Module):
             key_states,
             value_states,
             dropout_p=0.0,
-            is_causal=True,
+            is_causal=is_causal,
         )
 
         attn_output = attn_output.transpose(1, 2).contiguous()

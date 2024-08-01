@@ -5,8 +5,8 @@ import torch.nn as nn
 class KVCache:
     def __init__(self, n_layer):
         self.n_layer = n_layer
-        self.key_list = [[]]*n_layer
-        self.value_list = [[]]*n_layer
+        self.key_list = [[] for _ in range(n_layer)]
+        self.value_list = [[] for _ in range(n_layer)]
 
     def reset(self):
         """Clear the cache."""
