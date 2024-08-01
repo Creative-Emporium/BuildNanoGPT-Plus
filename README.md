@@ -15,6 +15,10 @@ The training script is train.py, and the model implementation, and the evaluatio
 
 Now, a partially trained model can be loaded in train.py to continue training it rather than start from scratch all the time.
 
+- [x] Add Key Value Cache.
+
+Now for inference, key value cache is added (only to LlaMa Now) for faster inference.
+
 - [x] Printing Training Progress and Estimated Time.
 
 You had to calculate the training progress and completion time. Now, it is printed.

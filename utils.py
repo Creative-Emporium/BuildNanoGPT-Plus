@@ -170,7 +170,7 @@ def completion(model, enc, prompt, device, device_type,model_imp, generate_max_l
         return ret
 
 
-    while xgen.size(1) < generate_max_length:
+    while result.size(1) < generate_max_length:
         # forward the model to get the logits
         with torch.no_grad():
             with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
@@ -190,12 +190,17 @@ def completion(model, enc, prompt, device, device_type,model_imp, generate_max_l
             ix = torch.multinomial(topk_probs, 1, generator=sample_rng) # (B, 1)
             # gather the corresponding indices
             xcol = torch.gather(topk_indices, -1, ix) # (B, 1)
-            # append to the sequence
-            xgen = torch.cat((xgen, xcol), dim=1)
+            if use_cache:
+                xgen = xcol
+                result = torch.cat((result, xgen.to(cpu_device)), dim=1)
+            else:
+                # append to the sequence
+                xgen = torch.cat((xgen, xcol), dim=1)
+                result = xgen
     # print the generated text
     results = []
     for i in range(num_return_sequences):
-        tokens = xgen[i, :generate_max_length].tolist()
+        tokens = result[i, :generate_max_length].tolist()
         decoded = enc.decode(tokens)
         print(f"rank {rank} sample {i}: {decoded}")
         results.append(decoded)
