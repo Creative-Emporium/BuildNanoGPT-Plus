@@ -177,7 +177,7 @@ def completion(model, enc, prompt, device, device_type,model_imp, generate_max_l
                 if model_imp == 'hf':
                     logits, _ = model(xgen, return_dict=False)
                 else:
-                    logits = model(xgen)
+                    logits = model(xgen,use_cache=use_cache,cache=cache)
             # take the logits at the last position
             logits = logits[:, -1, :] # (B, vocab_size)
             # get the probabilities
