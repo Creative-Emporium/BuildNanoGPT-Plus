@@ -12,7 +12,7 @@ from presets import *
 # -----------------------------------------------------------------------------
 import tiktoken
 import numpy as np
-
+import wandb
 from utils import *
 
 # -----------------------------------------------------------------------------
@@ -34,6 +34,8 @@ parser = argparse.ArgumentParser(description='Train a model')
 # Add the arguments
 parser.add_argument('--for_develop', type=bool, default=False, help='For development')
 parser.add_argument('--model_name', type=str, default='gpt2', help='Model name')
+parser.add_argument('--project_name', type=str, default='nanogpt', help='Project name')
+parser.add_argument('--exp_name', type=str, required=True, help='Experiment name')
 parser.add_argument('--data_root', type=str, default="edu_fineweb10B", help='Root of Data folder')
 parser.add_argument('--model_imp', type=str, default='custom', help='Model name')
 parser.add_argument('--siz', type=str, default='124m', help='Size')
@@ -67,6 +69,9 @@ parser.add_argument('--generate_max_length', type=int, default=32, help='Generat
 
 # Parse the arguments
 args = parser.parse_args()
+
+
+wandb.init(project=args.project_name, name=args.exp_name, resume='allow')
 
 # Now you can use the arguments as variables in your code
 for_develop = args.for_develop
@@ -184,6 +189,9 @@ else:
         # create model
         if continue_training:
             checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
+            if 'current_shard' in checkpoint:
+                start_shard = checkpoint['current_shard']
+                start_position = checkpoint['current_position']
             config = checkpoint['config']
             model = GPT(config)
             model, ini_step = load_model(model, ckpt_path, True)
@@ -275,6 +283,7 @@ for step in range(start_step,max_steps):
         if ddp:
             dist.all_reduce(val_loss_accum, op=dist.ReduceOp.AVG)
         if master_process:
+            wandb.log({"validation_loss": val_loss_accum.item()}, step=step)
             print(f"validation loss: {val_loss_accum.item():.4f}")
             with open(log_file, "a") as f:
                 f.write(f"{step} val {val_loss_accum.item():.4f}\n")
@@ -296,7 +305,9 @@ for step in range(start_step,max_steps):
 
     # once in a while evaluate hellaswag
     if (step % evaluate_hella_every == 0 or last_step) and (not use_compile) and step > start_step:
-        evaluate_hella_swag(model, device, device_type,model_imp, dist,ddp,master_process,ddp_rank,ddp_world_size,log_file,step)
+        num_correct_norm,num_total,acc_norm = evaluate_hella_swag(model, device, device_type,model_imp, dist,ddp,master_process,ddp_rank,ddp_world_size,log_file,step)
+        if master_process:
+            wandb.log({"hella_accuracy": acc_norm}, step=step)
 
     # once in a while generate from the model (except step 0, which is noise)
     if ((step > start_step and step % generate_every == 0) or last_step) and (not use_compile):
@@ -342,6 +353,7 @@ for step in range(start_step,max_steps):
     progress = step / max_steps
     estimated_rest_time = (max_steps - step) * dt / 3600
     if master_process:
+        wandb.log({"training_loss": loss_accum.item(), "learning_rate": lr, "norm": norm, "tokens_per_sec": tokens_per_sec}, step=step)
         print(f"step {step:5d} | progress {progress*100:.2f}% | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f} | est: {estimated_rest_time:.2f}h")
         with open(log_file, "a") as f:
             f.write(f"{step} train {loss_accum.item():.6f}\n")

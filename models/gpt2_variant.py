@@ -13,6 +13,41 @@ class GPTVariantConfig:
     n_head: int = 12 # number of heads
     n_embd: int = 768 # embedding dimension
 
+
+import torch.nn.init as init
+from torch import Tensor
+
+
+class AdaNorm(nn.Module):
+    def __init__(self, dim, k: float = 0.1, eps: float = 1e-8, bias: bool = False) -> None:
+        super(AdaNorm, self).__init__()
+        self.k = k
+        self.eps = eps
+        self.scale = nn.Parameter(torch.empty(dim))
+        if bias:
+            self.bias = nn.Parameter(torch.empty(dim))
+        else:
+            self.register_parameter('bias', None)
+
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        init.ones_(self.scale)
+        if self.bias is not None:
+            init.zeros_(self.bias)
+
+    def forward(self, input: Tensor) -> Tensor:
+        mean = torch.mean(input, dim=-1, keepdim=True)
+        var = (input - mean).pow(2).mean(dim=-1, keepdim=True) + self.eps
+
+        input_norm = (input - mean) * torch.rsqrt(var)
+
+        adanorm = self.scale * (1 - self.k * input_norm) * input_norm
+
+        if self.bias is not None:
+            adanorm = adanorm + self.bias
+
+        return adanorm
 class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
@@ -62,19 +97,15 @@ class Block(nn.Module):
 
     def __init__(self, config,i):
         super().__init__()
-        self.ln_1 = nn.LayerNorm(config.n_embd)
+        self.ln_1 = AdaNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
-        self.ln_2 = nn.LayerNorm(config.n_embd)
+        self.ln_2 = AdaNorm(config.n_embd)
         self.mlp = MLP(config)
         self.i = i
 
     def forward(self, x):
-        if self.i < 2:
-            x = self.attn(self.ln_1(x))
-            x = self.mlp(self.ln_2(x))
-        else:
-            x = x + self.attn(self.ln_1(x))
-            x = x + self.mlp(self.ln_2(x))
+        x = self.attn(self.ln_1(x))
+        x = self.mlp(self.ln_2(x))
         return x
 
 
@@ -109,7 +140,7 @@ class GPTVariant(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None, use_cache=False, cache=None):
         # idx is of shape (B, T)
         B, T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
@@ -119,8 +150,12 @@ class GPTVariant(nn.Module):
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (B, T, n_embd)
         x = tok_emb + pos_emb
         # forward the blocks of the transformer
+        reps = []
         for block in self.transformer.h:
             x = block(x)
+            reps.append(x)
+        # average the final representations from all blocks
+        x = torch.stack(reps, dim=1).mean(dim=1)
         # forward the final layernorm and the classifier
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x) # (B, T, vocab_size)

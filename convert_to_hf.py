@@ -5,11 +5,15 @@ from utils import load_model
 import torch
 
 
-def convert_to_hf(model_name,config,ckp_path):
+def convert_to_hf(model_name,ckp_path):
     # Load the model from the checkpoint
+    checkpoint = torch.load(ckp_path, map_location=torch.device('cpu'))
+    config = checkpoint['config']
     if model_name == 'gpt2':
+
+        state_dict = checkpoint['model']
         model = GPT(config)
-        model = load_model(model, ckp_path)
+        model.load_state_dict(state_dict)
         config = GPT2Config(
             vocab_size=50304,
             n_positions=1024,
@@ -33,13 +37,13 @@ def convert_to_hf(model_name,config,ckp_path):
             rms_norm_eps=config.norm_eps,
             rope_theta=config.rope_theta)
 
-        hf_model = LlamaForCausalLM(config=config)
+        model_hf = LlamaForCausalLM(config=config)
 
     sd = model.state_dict()
     sd_keys = sd.keys()
     if model_name == 'gpt2':
         sd_keys = [k for k in sd_keys if not k.endswith('.attn.bias')]
-    else
+    else:
         sd_keys = [k for k in sd_keys if not k.endswith('.bias')]
 
     # Initialize the model
