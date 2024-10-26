@@ -19,7 +19,7 @@ from utils import *
 # simple launch:
 # python train.py
 # DDP launch for e.g. 8 GPUs:
-# CUDA_VISIBLE_DEVICES=0,3 torchrun --standalone --nproc_per_node=2 train.py
+# CUDA_VISIBLE_DEVICES=2,3 torchrun --standalone --nproc_per_node=2 train.py
 
 # run the training loop
 from torch.distributed import init_process_group, destroy_process_group
